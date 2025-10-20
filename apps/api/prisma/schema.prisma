@@ -1,0 +1,187 @@
+// Datasource
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Generator
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Enums
+enum Role {
+  ADMIN
+  MANAGER
+  STAFF
+}
+
+enum TaskStatus {
+  DONE
+  NOT_DONE
+}
+
+enum Cadence {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// Models
+model Org {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users     User[]
+  sites     Site[]
+  templates TaskTemplate[]
+  payrolls  PayrollPeriod[]
+}
+
+model User {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String   @unique
+  fullName  String
+  role      Role
+  // Optional legacy base monthly salary in PKR. Current model uses per-task amounts.
+  salaryBase Decimal?  @db.Decimal(12,2)
+  // Timezone for scheduling; default Asia/Karachi
+  timezone  String   @default("Asia/Karachi")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org            Org              @relation(fields: [orgId], references: [id])
+  assignments    TaskAssignment[]
+  attendanceLogs Attendance[]
+  feedbackGiven  Feedback[]       @relation("feedback_given")
+  feedbackTo     Feedback[]       @relation("feedback_to")
+}
+
+model Site {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  // Optional geofence circle
+  latitude  Float?
+  longitude Float?
+  radiusM   Int?     // meters
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org         Org            @relation(fields: [orgId], references: [id])
+  attendance  Attendance[]
+}
+
+model Attendance {
+  id           String   @id @default(cuid())
+  userId       String
+  siteId       String?
+  checkInAt    DateTime
+  checkInLat   Float?
+  checkInLng   Float?
+  checkOutAt   DateTime?
+  checkOutLat  Float?
+  checkOutLng  Float?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([userId, checkInAt])
+}
+
+model TaskTemplate {
+  id            String   @id @default(cuid())
+  orgId         String
+  title         String
+  description   String?
+  cadence       Cadence
+  requirePhoto  Boolean  @default(false)
+  // Default PKR amount for this task (can be overridden per assignment)
+  amountPKR     Decimal  @db.Decimal(12,2)
+  siteId        String?  // Optional default site
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  org      Org   @relation(fields: [orgId], references: [id])
+  site     Site? @relation(fields: [siteId], references: [id])
+  assigned TaskAssignment[]
+}
+
+model TaskAssignment {
+  id          String   @id @default(cuid())
+  userId      String
+  templateId  String
+  // Period as YYYY-MM, e.g., 2025-10
+  period      String
+  dueAt       DateTime
+  siteId      String?
+  // Optional override of PKR amount for this assignment
+  amountPKR   Decimal? @db.Decimal(12,2)
+  // Auto-miss if not completed by dueAt
+  autoMissedAt DateTime?
+  createdAt   DateTime @default(now())
+
+  user     User         @relation(fields: [userId], references: [id])
+  template TaskTemplate @relation(fields: [templateId], references: [id])
+  site     Site?        @relation(fields: [siteId], references: [id])
+  completion TaskCompletion?
+
+  @@index([userId, period])
+}
+
+model TaskCompletion {
+  id            String      @id @default(cuid())
+  assignmentId  String      @unique
+  status        TaskStatus
+  completedAt   DateTime
+  note          String?
+  photoUrl      String?
+  latitude      Float?
+  longitude     Float?
+  // If the task was auto-marked NOT_DONE due to missing the due time
+  missedReason  String?
+
+  assignment TaskAssignment @relation(fields: [assignmentId], references: [id])
+}
+
+model PayrollPeriod {
+  id             String   @id @default(cuid())
+  orgId          String
+  userId         String
+  month          String   // YYYY-MM
+  tasksAssigned  Int
+  tasksDone      Int
+  // Sum of PKR amounts for DONE tasks in the month
+  computedSalary Decimal  @db.Decimal(12,2)
+  finalizedAt    DateTime?
+  createdAt      DateTime @default(now())
+
+  org  Org  @relation(fields: [orgId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, month])
+}
+
+model Feedback {
+  id              String   @id @default(cuid())
+  orgId           String
+  givenByUserId   String
+  givenToUserId   String
+  // Date of feedback or period label (e.g., 2025-10)
+  period          String?
+  appearanceScore Int
+  uniformScore    Int
+  behaviorScore   Int
+  note            String?
+  createdAt       DateTime @default(now())
+
+  org         Org   @relation(fields: [orgId], references: [id])
+  givenBy     User  @relation("feedback_given", fields: [givenByUserId], references: [id])
+  givenTo     User  @relation("feedback_to", fields: [givenToUserId], references: [id])
+}
+
+
