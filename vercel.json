@@ -1,0 +1,8 @@
+{
+  "version": 2,
+  "env": {},
+  "installCommand": "npm ci --workspaces=false && cd apps/web && npm ci",
+  "buildCommand": "cd apps/web && npm run build",
+  "outputDirectory": "apps/web/.next"
+}
+
