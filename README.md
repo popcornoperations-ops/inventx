@@ -15,16 +15,11 @@ Local-first dev environment for web, mobile, and API.
    ```bash
    npm i
    ```
-3. API: set env and migrate:
-   - Create `apps/api/.env` with:
-     ```bash
-     DATABASE_URL="postgresql://inventx:inventx@localhost:5432/inventx"
-     ```
-   - Generate client and run migrations:
-     ```bash
-     npm run --workspace=api prisma:generate
-     npm run --workspace=api prisma:migrate -- --name init
-     ```
+3. API: generate client and migrate (SQLite local, no Docker needed):
+   ```bash
+   npm run --workspace=api prisma:generate
+   npm run --workspace=api prisma:migrate -- --name init
+   ```
 4. Run apps (in separate terminals):
    ```bash
    npm run dev --workspace=api
